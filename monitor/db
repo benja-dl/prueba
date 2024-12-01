@@ -1,0 +1,122 @@
+-- Tabla de Usuarios
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    first_name VARCHAR(50),
+    last_name VARCHAR(50),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Tabla de Organizaciones
+CREATE TABLE organizations (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Relación de Usuarios y Organizaciones (Muchos a Muchos)
+CREATE TABLE organization_users (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    organization_id INT REFERENCES organizations(id) ON DELETE CASCADE,
+    role VARCHAR(50) NOT NULL, -- e.g., 'admin', 'member', 'viewer'
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(user_id, organization_id)
+);
+
+-- Tabla de Equipos
+CREATE TABLE teams (
+    id SERIAL PRIMARY KEY,
+    organization_id INT REFERENCES organizations(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Relación de Usuarios y Equipos (Muchos a Muchos)
+CREATE TABLE team_users (
+    id SERIAL PRIMARY KEY,
+    team_id INT REFERENCES teams(id) ON DELETE CASCADE,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(team_id, user_id)
+);
+
+-- Tabla de Dominios
+CREATE TABLE domains (
+    id SERIAL PRIMARY KEY,
+    organization_id INT REFERENCES organizations(id) ON DELETE SET NULL,
+    owner_user_id INT REFERENCES users(id) ON DELETE SET NULL, -- Para usuarios independientes
+    name VARCHAR(255) UNIQUE NOT NULL, -- e.g., "example.com"
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Relación de Equipos y Dominios (Muchos a Muchos)
+CREATE TABLE team_domains (
+    id SERIAL PRIMARY KEY,
+    team_id INT REFERENCES teams(id) ON DELETE CASCADE,
+    domain_id INT REFERENCES domains(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(team_id, domain_id)
+);
+
+-- Tabla de Métricas de Dominio
+CREATE TABLE domain_metrics (
+    id SERIAL PRIMARY KEY,
+    domain_id INT REFERENCES domains(id) ON DELETE CASCADE,
+    uptime_percentage NUMERIC(5, 2) NOT NULL, -- Porcentaje de uptime
+    downtime_seconds INT NOT NULL, -- Tiempo total de inactividad en segundos
+    response_time_ms INT NOT NULL, -- Tiempo de respuesta en milisegundos
+    first_byte_time_ms INT NOT NULL, -- Tiempo hasta el primer byte en ms
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Tabla de Errores de Dominio
+CREATE TABLE domain_errors (
+    id SERIAL PRIMARY KEY,
+    domain_id INT REFERENCES domains(id) ON DELETE CASCADE,
+    error_code INT NOT NULL, -- e.g., 404, 500
+    error_message TEXT NOT NULL,
+    occurred_at TIMESTAMP DEFAULT NOW(),
+    is_critical BOOLEAN DEFAULT FALSE -- Indica si el error es crítico
+);
+
+-- Tabla de Alertas
+CREATE TABLE alerts (
+    id SERIAL PRIMARY KEY,
+    domain_id INT REFERENCES domains(id) ON DELETE CASCADE,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    error_id INT REFERENCES domain_errors(id) ON DELETE CASCADE,
+    message TEXT NOT NULL,
+    sent_at TIMESTAMP DEFAULT NOW(), -- Fecha y hora en que se envió la alerta
+    status VARCHAR(20) DEFAULT 'pending', -- Estados: 'pending', 'sent', 'failed'
+    UNIQUE(domain_id, user_id, error_id) -- Evita duplicación de alertas
+);
+
+-- Tabla de Informes Generados
+CREATE TABLE reports (
+    id SERIAL PRIMARY KEY,
+    domain_id INT REFERENCES domains(id) ON DELETE CASCADE,
+    report_type VARCHAR(50) NOT NULL, -- e.g., 'daily', 'weekly', 'monthly'
+    generated_at TIMESTAMP DEFAULT NOW(),
+    report_data JSONB NOT NULL -- Datos del informe en formato JSON
+);
+
+-- Tabla de Invitaciones a Organizaciones
+CREATE TABLE organization_invitations (
+    id SERIAL PRIMARY KEY,
+    organization_id INT REFERENCES organizations(id) ON DELETE CASCADE,
+    email VARCHAR(255) NOT NULL, -- Email del usuario invitado
+    invited_by_user_id INT REFERENCES users(id) ON DELETE SET NULL, -- Usuario que envió la invitación
+    status VARCHAR(20) DEFAULT 'pending', -- Estados posibles: 'pending', 'accepted', 'declined'
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(organization_id, email) -- Evita múltiples invitaciones al mismo correo en una organización
+);
